@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HW1-1 Grid Map</title>
+    <style>
+        table { border-collapse: collapse; margin: 10px 0; }
+        td {
+            width: 40px; height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .start { background-color: green; color: white; }
+        .end { background-color: red; color: white; }
+        .obstacle { background-color: gray; color: white; }
+        .container { display: flex; gap: 50px; margin-top: 30px; }
+        h2 { margin-bottom: 5px; }
+    </style>
+</head>
+
+<body>
+    <h2>Generate n x n Square</h2>
+    <form method="POST">
+        <label>Enter a number between 5 and 9: </label>
+        <input type="number" name="grid_size" min="5" max="9" required>
+        <input type="submit" value="Generate Square">
+    </form>
+
+    {% if grid_size %}
+        <h3>{{ grid_size }} x {{ grid_size }} Square:</h3>
+        <table id="grid">
+            {% for i in range(grid_size) %}
+            <tr>
+                {% for j in range(grid_size) %}
+                <td id="cell-{{i}}-{{j}}" onclick="handleClick({{i}}, {{j}})">
+                    {{ i * grid_size + j + 1 }}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+        <p>剩餘障礙格可設數量：<span id="remaining">{{ grid_size - 2 }}</span></p>
+        <br>
+        <button onclick="submitMap()">送出地圖設定並顯示策略</button>
+
+        <div id="results" style="display: none;">
+            <h1>策略顯示與價值評估結果</h1>
+            <div class="container">
+                <div>
+                    <h2>Value Matrix</h2>
+                    <table id="valueMatrix"></table>
+                </div>
+                <div>
+                    <h2>Policy Matrix</h2>
+                    <table id="policyMatrix"></table>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <script>
+        let phase = 0;
+        let obstacleLimit = {{ grid_size - 2 if grid_size else 0 }};
+        let remaining = obstacleLimit;
+
+        let mapData = {
+            start: null,
+            end: null,
+            obstacles: []
+        };
+
+        function handleClick(i, j) {
+            const cell = document.getElementById(`cell-${i}-${j}`);
+            if (phase === 0) {
+                cell.className = "start";
+                phase = 1;
+                mapData.start = [i, j];
+            } else if (phase === 1 && !cell.classList.contains("start")) {
+                cell.className = "end";
+                phase = 2;
+                mapData.end = [i, j];
+            } else if (phase === 2) {
+                const key = `${i},${j}`;
+                if (cell.classList.contains("obstacle")) {
+                    cell.classList.remove("obstacle");
+                    remaining++;
+                    mapData.obstacles = mapData.obstacles.filter(item => item !== key);
+                } else if (!cell.classList.contains("start") && !cell.classList.contains("end")) {
+                    if (remaining > 0) {
+                        cell.classList.add("obstacle");
+                        remaining--;
+                        mapData.obstacles.push(key);
+                    } else {
+                        alert("已達障礙格數量上限！");
+                    }
+                }
+                document.getElementById("remaining").innerText = remaining;
+            }
+        }
+
+        function submitMap() {
+            if (!mapData.start || !mapData.end) {
+                alert("請先設定起點與終點！");
+                return;
+            }
+
+            const formattedObstacles = mapData.obstacles.map(item => item.split(',').map(Number));
+            const payload = {
+                start: mapData.start,
+                end: mapData.end,
+                obstacles: formattedObstacles,
+                size: {{ grid_size }}
+            };
+
+            fetch("/save_map", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            })
+            .then(() => fetch("/evaluate"))
+            .then(res => res.json())
+            .then(data => {
+                renderMatrix("valueMatrix", data.value_matrix);
+                renderMatrix("policyMatrix", data.policy_matrix);
+                document.getElementById("results").style.display = "block";
+            });
+        }
+
+        function renderMatrix(tableId, matrix) {
+            const table = document.getElementById(tableId);
+            table.innerHTML = "";
+            for (const row of matrix) {
+                const tr = document.createElement("tr");
+                for (const cell of row) {
+                    const td = document.createElement("td");
+                    td.textContent = cell;
+                    tr.appendChild(td);
+                }
+                table.appendChild(tr);
+            }
+        }
+    </script>
+</body>
+</html>
