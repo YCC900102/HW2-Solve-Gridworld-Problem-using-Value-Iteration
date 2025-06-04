@@ -55,6 +55,7 @@
                 <div>
                     <h2>Policy Matrix</h2>
                     <table id="policyMatrix"></table>
+                    <button onclick="runPolicyAnimation()">▶ 執行策略動畫</button>
                 </div>
             </div>
         </div>
@@ -100,6 +101,10 @@
             }
         }
 
+        let policyData = null;
+        let startPos = null;
+        let interval = null;
+
         function submitMap() {
             if (!mapData.start || !mapData.end) {
                 alert("請先設定起點與終點！");
@@ -124,6 +129,8 @@
             .then(data => {
                 renderMatrix("valueMatrix", data.value_matrix);
                 renderMatrix("policyMatrix", data.policy_matrix);
+                policyData = data.policy_matrix;
+                startPos = mapData.start;
                 document.getElementById("results").style.display = "block";
             });
         }
@@ -141,6 +148,59 @@
                 table.appendChild(tr);
             }
         }
+
+        function runPolicyAnimation() {
+            if (!policyData || !startPos) {
+                alert("請先送出地圖並產生策略！");
+                return;
+            }
+
+            const table = document.getElementById("policyMatrix");
+            let [r, c] = [...startPos];
+            const steps = [];
+
+            function getNextPosition(dir, row, col) {
+                switch (dir) {
+                    case "↑": return [row - 1, col];
+                    case "↓": return [row + 1, col];
+                    case "←": return [row, col - 1];
+                    case "→": return [row, col + 1];
+                    default: return null;
+                }
+            }
+
+            function animateStep() {
+                if (r < 0 || r >= table.rows.length || c < 0 || c >= table.rows[0].cells.length) {
+                    clearInterval(interval);
+                    return;
+                }
+
+                const cell = table.rows[r].cells[c];
+                const dir = cell.textContent;
+
+                if (dir === "G") {
+                    cell.style.backgroundColor = "gold";
+                    clearInterval(interval);
+                    return;
+                }
+
+                cell.style.backgroundColor = "lightblue";
+                steps.push(cell);
+
+                if (steps.length > 1) {
+                    steps[steps.length - 2].style.backgroundColor = ""; // reset previous
+                }
+
+                const [nextR, nextC] = getNextPosition(dir, r, c);
+                r = nextR;
+                c = nextC;
+            }
+
+            clearInterval(interval);
+            animateStep();
+            interval = setInterval(animateStep, 500);
+        }
     </script>
 </body>
 </html>
+
